@@ -13,6 +13,7 @@ from sklearn.metrics import r2_score
 import warnings
 import pickle
 import argparse
+from scipy import stats
 
 warnings.filterwarnings("ignore")
 
@@ -231,8 +232,8 @@ def run_deep(X, y, idx, test_size,
 
 
 if __name__ == "__main__":
-    # arguments
 
+    # arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--AllResSaveFolder", help="all results save folder")
     parser.add_argument("-d", "--DataframeSavePath", help="dataframe save path")
@@ -249,23 +250,29 @@ if __name__ == "__main__":
     y_total = data_arr[:, 12:]
 
     # running
-    # n_shuff = 1000
     results_df = dict()
-    results_df['label'] = ['idx', 'loss', 'p_loss', 'sig_loss', 'corr', 'p_corr', 'sig_corr', 'r2', 'p_r2', 'sig_r2']
-    for idx in range(56):
+    results_df['name'] = ['idx',
+                          'loss_null', 'loss_alternative', 'p_loss', 'sig_loss',
+                          'corr_null', 'corr_alternative', 'p_corr', 'sig_corr',
+                          'r2_null', 'r2_alternative', 'p_r2', 'sig_r2']
+    for idx in range(5):
         y = copy.deepcopy(y_total[:, idx])
+        alternative_res = dict(loss=list(), corr=list(), r2=list())
+        for i in range(n_shuff):
+            tensorboard_path = os.path.join('tensorboard5/', str(idx) + '_' + str(int(round(time.time() % 1, 5) * 1e5)))
+            _, res = run_deep(X, y, idx, 0.2,
+                              train_batch_size=10, val_batch_size=5,
+                              learning_rate=1e-3,
+                              tensorboard_path=tensorboard_path,
+                              print_iteration=1,
+                              n_epochs=100,
+                              tensorboard=False,
+                              do_print=False)
+            alternative_res['loss'].append(res['loss'])
+            alternative_res['corr'].append(res['corr'])
+            alternative_res['r2'].append(res['r2'])
 
-        tensorboard_path = os.path.join('tensorboard5/', str(idx) + '_' + str(int(round(time.time() % 1, 5) * 1e5)))
-        _, best_r = run_deep(X, y, idx, 0.2,
-                             train_batch_size=10, val_batch_size=5,
-                             learning_rate=1e-3,
-                             tensorboard_path=tensorboard_path,
-                             print_iteration=1,
-                             n_epochs=100,
-                             tensorboard=False,
-                             do_print=False)
-
-        all_r = dict(loss=list(), corr=list(), r2=list())
+        null_res = dict(loss=list(), corr=list(), r2=list())
         for i in tqdm(range(n_shuff)):
             np.random.shuffle(y)
             tensorboard_path = os.path.join('tensorboard5/', str(idx) + '_' + str(int(round(time.time() % 1, 5) * 1e5)))
@@ -277,36 +284,33 @@ if __name__ == "__main__":
                                  n_epochs=100,
                                  tensorboard=False,
                                  do_print=False)
-            all_r['loss'].append(shuf_r['loss'])
-            all_r['corr'].append(shuf_r['corr'])
-            all_r['r2'].append(shuf_r['r2'])
+            null_res['loss'].append(shuf_r['loss'])
+            null_res['corr'].append(shuf_r['corr'])
+            null_res['r2'].append(shuf_r['r2'])
 
-        all_r['best_results'] = best_r
+        all_res = dict(alternative=alternative_res, null=null_res)
+
         col_name = df_to_run.columns[idx + 14]
         with open(os.path.join(all_res_savefolder, f"{str(idx)}_{col_name}.pkl"), 'wb') as f:
-            pickle.dump(all_r, f)
+            pickle.dump(all_res, f)
 
-        p_loss = 0
-        p_corr = 0
-        p_r2 = 0
-        for i in range(n_shuff):
-            p_loss += 1 if all_r['loss'][i] < best_r['loss'] else 0
-            p_corr += 1 if all_r['corr'][i] > best_r['corr'] else 0
-            p_r2 += 1 if all_r['r2'][i] > best_r['r2'] else 0
+        p_loss = stats.ttest_ind(alternative_res['loss'], null_res['loss'], alternative='less').pvalue
+        p_corr = stats.ttest_ind(alternative_res['corr'], null_res['corr'], alternative='greater').pvalue
+        p_r2 = stats.ttest_ind(alternative_res['r2'], null_res['r2'], alternative='greater').pvalue
 
-        p_loss /= n_shuff
         sig_loss = 'Yes' if p_loss <= 0.05 else 'No'
-        p_corr /= n_shuff
         sig_corr = 'Yes' if p_corr <= 0.05 else 'No'
-        p_r2 /= n_shuff
         sig_r2 = 'Yes' if p_r2 <= 0.05 else 'No'
 
-        results_df[col_name] = [int(idx), round(best_r['loss'], 4), round(p_loss, 3), sig_loss,
-                                round(best_r['corr'], 4), round(p_corr, 3), sig_corr,
-                                round(best_r['r2'], 4), round(p_r2, 3), sig_r2]
+        results_df[col_name] = [int(idx),
+                                round(np.mean(null_res['loss']), 4), round(np.mean(alternative_res['loss']), 4),
+                                round(p_loss, 3), sig_loss,
+                                round(np.mean(null_res['corr']), 4), round(np.mean(alternative_res['corr']), 4),
+                                round(p_corr, 3), sig_corr,
+                                round(np.mean(null_res['r2']), 4), round(np.mean(alternative_res['r2']), 4),
+                                round(p_r2, 3), sig_r2]
 
         print(f'idx {idx} \np_value of loss: {p_loss} \np_value of corr: {p_corr} \np_value of r2: {p_r2}')
         print('\n================\n')
 
-    # pd.DataFrame(results_df).to_csv('results/p_value_complete.csv', index_label=False)
-    pd.DataFrame(results_df).to_csv(dataframe_savepath, index_label=False)
+    pd.DataFrame(results_df).to_csv(dataframe_savepath, index_label=True)
