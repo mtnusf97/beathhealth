@@ -12,6 +12,7 @@ import time
 from sklearn.metrics import r2_score
 import warnings
 import pickle
+import argparse
 
 warnings.filterwarnings("ignore")
 
@@ -230,6 +231,17 @@ def run_deep(X, y, idx, test_size,
 
 
 if __name__ == "__main__":
+    # arguments
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-a", "--AllResSaveFolder", help="all results save folder")
+    parser.add_argument("-d", "--DataframeSavePath", help="dataframe save path")
+    parser.add_argument("-n", "--NumOfShuffles", help="dataframe save path")
+    args = parser.parse_args()
+    dataframe_savepath = args.DataframeSavePath
+    all_res_savefolder = args.AllResSaveFolder
+    n_shuff = int(args.NumOfShuffles)
+
     # data
     df_to_run = pd.read_csv('../data/deep_test_retest_imputed.csv')
     data_arr = df_to_run.iloc[:, 2:].to_numpy()
@@ -237,7 +249,7 @@ if __name__ == "__main__":
     y_total = data_arr[:, 12:]
 
     # running
-    n_shuff = 1000
+    # n_shuff = 1000
     results_df = dict()
     results_df['label'] = ['idx', 'loss', 'p_loss', 'sig_loss', 'corr', 'p_corr', 'sig_corr', 'r2', 'p_r2', 'sig_r2']
     for idx in range(56):
@@ -271,7 +283,8 @@ if __name__ == "__main__":
 
         all_r['best_results'] = best_r
         col_name = df_to_run.columns[idx + 14]
-        with open('results/' + col_name + '.pkl', 'wb') as f:
+        # with open('results/' + col_name + '.pkl', 'wb') as f:
+        with open(os.path.join(all_res_savefolder, f"{str(idx)}_{col_name}.pkl"), 'wb') as f:
             pickle.dump(all_r, f)
 
         p_loss = 0
@@ -296,4 +309,5 @@ if __name__ == "__main__":
         print(f'idx {idx} \np_value of loss: {p_loss} \np_value of corr: {p_corr} \np_value of r2: {p_r2}')
         print('\n================\n')
 
-    pd.DataFrame(results_df).to_csv('results/p_value_complete.csv', index_label=False)
+    # pd.DataFrame(results_df).to_csv('results/p_value_complete.csv', index_label=False)
+    pd.DataFrame(results_df).to_csv(dataframe_savepath, index_label=False)
