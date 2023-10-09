@@ -11,6 +11,7 @@ import os
 import time
 from sklearn.metrics import r2_score
 import warnings
+import pickle
 
 warnings.filterwarnings("ignore")
 
@@ -268,6 +269,11 @@ if __name__ == "__main__":
             all_r['corr'].append(shuf_r['corr'])
             all_r['r2'].append(shuf_r['r2'])
 
+        all_r['best_results'] = best_r
+        col_name = df_to_run.columns[idx + 14]
+        with open('results/' + col_name + '.pkl', 'wb') as f:
+            pickle.dump(all_r, f)
+
         p_loss = 0
         p_corr = 0
         p_r2 = 0
@@ -275,6 +281,7 @@ if __name__ == "__main__":
             p_loss += 1 if all_r['loss'][i] < best_r['loss'] else 0
             p_corr += 1 if all_r['corr'][i] > best_r['corr'] else 0
             p_r2 += 1 if all_r['r2'][i] > best_r['r2'] else 0
+
         p_loss /= n_shuff
         sig_loss = 'Yes' if p_loss <= 0.05 else 'No'
         p_corr /= n_shuff
@@ -282,9 +289,9 @@ if __name__ == "__main__":
         p_r2 /= n_shuff
         sig_r2 = 'Yes' if p_r2 <= 0.05 else 'No'
 
-        results_df[df_to_run.columns[idx + 14]] = [int(idx), round(best_r['loss'], 4), round(p_loss, 3), sig_loss,
-                                                   round(best_r['corr'], 4), round(p_corr, 3), sig_corr,
-                                                   round(best_r['r2'], 4), round(p_r2, 3), sig_r2]
+        results_df[col_name] = [int(idx), round(best_r['loss'], 4), round(p_loss, 3), sig_loss,
+                                round(best_r['corr'], 4), round(p_corr, 3), sig_corr,
+                                round(best_r['r2'], 4), round(p_r2, 3), sig_r2]
 
         print(f'idx {idx} \np_value of loss: {p_loss} \np_value of corr: {p_corr} \np_value of r2: {p_r2}')
         print('\n================\n')
