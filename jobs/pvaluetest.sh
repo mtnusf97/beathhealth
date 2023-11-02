@@ -6,6 +6,6 @@
 
 source ../../CTRNN/.venv/bin/activate
 echo 'starting point'
-python3 ../deep/deep_pipeline.py -a ../deep/results/try1/ -d results/p_value_res1.csv -n 1000
+python3 ../deep/deep_pipeline.py -a ../deep/results/factor1/ -d results/p_value_res_factor1.csv -n 100
 echo 'Done'
 sleep 5
